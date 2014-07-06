@@ -57,7 +57,7 @@ grunt.initConfig({
       password: "PASSWORD",
       url: "storename.myshopify.com",
       base: "shop/",
-      ThemeId: '', // you can find this id in the url to the theme in shopify editor like this : https://my-shopify.myshopify.com/admin/themes/4733339 . leave it empty to use puplished theme
+      ThemeId: '', // you can find this id in the url to the theme in shopify editor like this : https://my-shopify.myshopify.com/admin/themes/4733339 . leave it empty to use Published theme
     }
   },
 })
