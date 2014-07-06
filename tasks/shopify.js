@@ -9,12 +9,12 @@
 
 module.exports = function(grunt) {
     var shopify = shopify || {},
-        fs = require('fs'),
-        path = require('path'),
-        glob = require('glob'),
-        util = require('util'),
-        https = require('https'),
-        growl = require('growl');
+            fs = require('fs'),
+            path = require('path'),
+            glob = require('glob'),
+            util = require('util'),
+            https = require('https'),
+            growl = require('growl');
 
     /*
      * Return the base api host with the basic auth. Does not require the
@@ -39,6 +39,13 @@ module.exports = function(grunt) {
         return config.options.api_key + ":" + config.options.password;
     };
 
+
+    shopify.getThemeId = function() {
+        var config = grunt.config('shopify');
+
+        return config.options.ThemeId;
+    };
+
     /*
      * Helper to detect whether a file is binary or not. Used to handle sending
      * image assets to shopify vs other assets
@@ -48,11 +55,11 @@ module.exports = function(grunt) {
      */
     shopify.isBinaryFile = function(file, callback) {
         var ascii = true,
-            i, len;
+                i, len;
 
         fs.readFile(file, function(err, data) {
             if (err) {
-                grunt.log.error("isBinaryFile failed on " + file +": "+ err);
+                grunt.log.error("isBinaryFile failed on " + file + ": " + err);
 
                 return false;
             }
@@ -80,36 +87,36 @@ module.exports = function(grunt) {
     shopify.notify = function(res, msg) {
         var config = grunt.config('shopify');
 
-        if(typeof res !== "string") {
-            if(res.statusCode >= 400) {
-                msg = "Error "+ msg +" (Status Code: "+ res.statusCode + ")";
+        if (typeof res !== "string") {
+            if (res.statusCode >= 400) {
+                msg = "Error " + msg + " (Status Code: " + res.statusCode + ")";
 
-                if(!config.options.disable_growl_notifications) {
-                    growl(msg, { title: 'Grunt Shopify'});
+                if (!config.options.disable_growl_notifications) {
+                    growl(msg, {title: 'Grunt Shopify'});
                 }
 
-                if(!config.options.disable_grunt_log) {
+                if (!config.options.disable_grunt_log) {
                     grunt.log.error('[grunt-shopify] - ' + msg);
                 }
             }
             else {
-                msg = "Success "+ msg +" (Status Code: "+ res.statusCode + ")";
+                msg = "Success " + msg + " (Status Code: " + res.statusCode + ")";
 
-                if(!config.options.disable_growl_notifications) {
-                    growl(msg, { title: 'Grunt Shopify'});
+                if (!config.options.disable_growl_notifications) {
+                    growl(msg, {title: 'Grunt Shopify'});
                 }
 
-                if(!config.options.disable_grunt_log) {
+                if (!config.options.disable_grunt_log) {
                     grunt.log.ok('[grunt-shopify] - ' + msg);
                 }
             }
         }
         else {
-            if(!config.options.disable_growl_notifications) {
-               growl(res, { title: 'Grunt Shopify'});
+            if (!config.options.disable_growl_notifications) {
+                growl(res, {title: 'Grunt Shopify'});
             }
 
-            if(!config.options.disable_grunt_log) {
+            if (!config.options.disable_grunt_log) {
                 grunt.log.ok('[grunt-shopify] - ' + res);
             }
         }
@@ -131,7 +138,7 @@ module.exports = function(grunt) {
     shopify.getAssetKey = function(path) {
         var c = grunt.config('shopify');
 
-        if(c.options.base) {
+        if (c.options.base) {
             return path.substring(path.indexOf(c.options.base) + c.options.base.length);
         }
 
@@ -149,19 +156,30 @@ module.exports = function(grunt) {
      */
     shopify.remove = function(file, done) {
         shopify.notify("Deleting " + file);
-            file = file.replace("\\","/");
+        file = file.replace("\\", "/");
 
-        var path = shopify.getAssetKey(file).replace("\\","/");
-
-        var options = {
-            host: shopify.getHost(),
-            auth: shopify.getAuth(),
-            path: '/admin/assets.json?asset[key]='+path,
-            method: 'DELETE',
-            headers: {
-                'Content-Length': 0
-            }
-        };
+        var path = shopify.getAssetKey(file).replace("\\", "/");
+        if (shopify.getThemeId() != '') {
+            var options = {
+                host: shopify.getHost(),
+                auth: shopify.getAuth(),
+                path: '/admin/themes/' + shopify.getThemeId() + '/assets.json?asset[key]=' + path,
+                method: 'DELETE',
+                headers: {
+                    'Content-Length': 0
+                }
+            };
+        } else {
+            var options = {
+                host: shopify.getHost(),
+                auth: shopify.getAuth(),
+                path: '/admin/assets.json?asset[key]=' + path,
+                method: 'DELETE',
+                headers: {
+                    'Content-Length': 0
+                }
+            };
+        }
 
         var req = https.request(options, function(res) {
             res.setEncoding('utf8');
@@ -169,15 +187,15 @@ module.exports = function(grunt) {
             var body = '';
 
             res.on('data', function(chunk) {
-              body += chunk;
+                body += chunk;
             });
 
-            res.on('end', function () {
-              if (res.statusCode >= 400 ) {
-                shopify.notify(res, "delete failed with response " + body);
-              } else {
-                shopify.notify(res, "deleted file " + path + " from shopify");
-              }
+            res.on('end', function() {
+                if (res.statusCode >= 400) {
+                    shopify.notify(res, "delete failed with response " + body);
+                } else {
+                    shopify.notify(res, "deleted file " + path + " from shopify");
+                }
                 shopify.notify(res, "deleting file");
                 return done(true);
             });
@@ -210,14 +228,14 @@ module.exports = function(grunt) {
      * @param {function} async completion callback
      */
     shopify.upload = function(file, done) {
-        file = file.replace("\\","/");
-        shopify.notify("Uploading " + file.replace("\\","/") );
+        file = file.replace("\\", "/");
+        shopify.notify("Uploading " + file.replace("\\", "/"));
 
         shopify.isBinaryFile(file, function(ascii, data) {
-            var key = shopify.getAssetKey(file.replace("\\","/")),
-                post = {};
+            var key = shopify.getAssetKey(file.replace("\\", "/")),
+                    post = {};
 
-            if(ascii) {
+            if (ascii) {
                 // if the file is a binary file
                 post = JSON.stringify({
                     'asset': {
@@ -234,33 +252,44 @@ module.exports = function(grunt) {
                     }
                 });
             }
-
-            var options = {
-                hostname: shopify.getHost(),
-                auth: shopify.getAuth(),
-                path: '/admin/assets.json',
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(post,'utf8')
-                }
-            };
-
+            if (shopify.getThemeId() != '') {
+                var options = {
+                    host: shopify.getHost(),
+                    auth: shopify.getAuth(),
+                    path: '/admin/themes/' + shopify.getThemeId() + '/assets.json',
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(post, 'utf8')
+                    }
+                };
+            } else {
+                var options = {
+                    hostname: shopify.getHost(),
+                    auth: shopify.getAuth(),
+                    path: '/admin/assets.json',
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(post, 'utf8')
+                    }
+                };
+            }
             var req = https.request(options, function(res) {
                 res.setEncoding('utf8');
 
                 var body = '';
 
                 res.on('data', function(chunk) {
-                  body += chunk;
+                    body += chunk;
                 });
 
-                res.on('end', function () {
-                  if (res.statusCode >= 400 ) {
-                    shopify.notify(res, "upload failed with response " + body);
-                  } else {
-                    shopify.notify(res, "uploaded file to shopify as " + key);
-                  }
+                res.on('end', function() {
+                    if (res.statusCode >= 400) {
+                        shopify.notify(res, "upload failed with response " + body);
+                    } else {
+                        shopify.notify(res, "uploaded file to shopify as " + key);
+                    }
                     return done(true);
                 });
 
@@ -282,16 +311,16 @@ module.exports = function(grunt) {
     shopify.deploy = function(done) {
         var c = grunt.config('shopify');
         var paths = [];
-        ['assets','config','layout','snippets','templates'].forEach(function(folder) {
-          paths = paths.concat(glob.sync(path.join(c.options.base || '', folder, '*.*')));
+        ['assets', 'config', 'layout', 'snippets', 'templates'].forEach(function(folder) {
+            paths = paths.concat(glob.sync(path.join(c.options.base || '', folder, '*.*')));
         });
         function next(i) {
             if (i < paths.length) {
-                shopify.upload(paths[i].replace("\\","/"), function(success) {
+                shopify.upload(paths[i].replace("\\", "/"), function(success) {
                     if (!success) {
                         return done(false);
                     }
-                    next(i+1);
+                    next(i + 1);
                 });
             } else {
                 done(true);
@@ -301,16 +330,27 @@ module.exports = function(grunt) {
     };
 
     shopify.getOneAsset = function(key, done) {
-        var options = {
-            hostname: shopify.getHost(),
-            auth: shopify.getAuth(),
-            path: '/admin/assets.json?asset[key]='+key,
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        };
-
+        if (shopify.getThemeId() != '') {
+            var options = {
+                host: shopify.getHost(),
+                auth: shopify.getAuth(),
+                path: '/admin/themes/' + shopify.getThemeId() + '/assets.json?asset[key]=' + key,
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+        } else {
+            var options = {
+                hostname: shopify.getHost(),
+                auth: shopify.getAuth(),
+                path: '/admin/assets.json?asset[key]=' + key,
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+        }
         var req = https.request(options, function(res) {
             res.setEncoding('utf8');
 
@@ -322,7 +362,7 @@ module.exports = function(grunt) {
                 body += chunk;
             });
 
-            res.on('end', function () {
+            res.on('end', function() {
                 try {
                     var obj = JSON.parse(body);
                     if (obj.asset) {
@@ -356,7 +396,7 @@ module.exports = function(grunt) {
                         grunt.log.error('Parsed object is not complete: ' + util.inspect(obj));
                         return done(false);
                     }
-                } catch(e) {
+                } catch (e) {
                     grunt.log.error('Failed to parse JSON response');
                     done(false);
                 }
@@ -371,16 +411,28 @@ module.exports = function(grunt) {
     };
 
     shopify.download = function(done) {
-        var options = {
-            hostname: shopify.getHost(),
-            auth: shopify.getAuth(),
-            path: '/admin/assets.json',
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        };
 
+        if (shopify.getThemeId() != '') {
+            var options = {
+                host: shopify.getHost(),
+                auth: shopify.getAuth(),
+                path: '/admin/themes/' + shopify.getThemeId() + '/assets.json',
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+        } else {
+            var options = {
+                hostname: shopify.getHost(),
+                auth: shopify.getAuth(),
+                path: '/admin/assets.json',
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+        }
         var req = https.request(options, function(res) {
             res.setEncoding('utf8');
 
@@ -391,21 +443,22 @@ module.exports = function(grunt) {
                 if (i < obj.assets.length) {
                     shopify.getOneAsset(obj.assets[i].key, function(success) {
                         if (!success) {
-                          return done(false);
+                            return done(false);
                         }
-                        next(i+1);
+                        next(i + 1);
                     });
                 } else {
                     shopify.notify('Theme sync complete.');
                     done(true);
                 }
-            };
+            }
+            ;
 
             res.on('data', function(chunk) {
                 body += chunk;
             });
 
-            res.on('end', function () {
+            res.on('end', function() {
                 try {
                     obj = JSON.parse(body);
                     if (obj.assets) {
@@ -442,25 +495,25 @@ module.exports = function(grunt) {
     grunt.registerTask('shopify:download', 'Downloads a single theme file from shopify, or the entire theme if no file is specified', function(p) {
         var done = this.async();
         if (p) {
-          var key = shopify.getAssetKey(p);
-          shopify.getOneAsset(key, done);
+            var key = shopify.getAssetKey(p);
+            shopify.getOneAsset(key, done);
         } else {
-          shopify.download(done);
+            shopify.download(done);
         }
     });
 
     grunt.registerTask('shopify:upload', 'Uploads a single theme file to Shopify, or the entire theme if no file is specified', function(p) {
         var done = this.async();
         if (p) {
-          shopify.upload(p, done);
+            shopify.upload(p, done);
         } else {
-          shopify.deploy(done);
+            shopify.deploy(done);
         }
     });
 
     grunt.registerTask('shopify:delete', 'Removes a theme file from Shopify', function(p) {
         var done = this.async();
-        shopify.remove(p.replace("\\","/"), done);
+        shopify.remove(p.replace("\\", "/"), done);
     });
 
     /**
@@ -470,28 +523,30 @@ module.exports = function(grunt) {
         var upload = true;
 
         try {
-            if(fs.lstatSync(filepath).isDirectory()) {
+            if (fs.lstatSync(filepath).isDirectory()) {
                 upload = false;
             }
         } catch (e) {
             //
         }
 
-        if(upload) {
+        if (upload) {
             switch (action) {
                 case 'deleted':
-                    shopify.remove(filepath.replace("\\","/"), function(){});
+                    shopify.remove(filepath.replace("\\", "/"), function() {
+                    });
 
                     break;
                 case 'added':
                 case 'changed':
                 case 'renamed':
-                    shopify.upload(filepath.replace("\\","/"), function(){});
+                    shopify.upload(filepath.replace("\\", "/"), function() {
+                    });
 
                     break;
             }
         } else {
-            shopify.notify("Skipping directory "+ filepath);
+            shopify.notify("Skipping directory " + filepath);
         }
 
         return true;
